@@ -14,7 +14,8 @@ from .services import (
     extract_docx_text, classify_document_text, analyze_document_with_ai_text,
     analyze_bill_of_lading_with_ai_text, analyze_packing_list_with_ai_text,
     analyze_co_with_ai_text, analyze_cq_with_ai_text, analyze_lc_with_ai_text,
-    extract_doc_text, analyze_insurance_with_ai, analyze_insurance_with_ai_text, audit_insurance
+    extract_doc_text, analyze_insurance_with_ai, analyze_insurance_with_ai_text, audit_insurance,
+    client
 )
 from .swift_parser import parse_swift_mt700
 from .database import init_db, add_audit_log, get_audit_logs, clear_audit_logs
@@ -42,6 +43,27 @@ class SWIFTInput(BaseModel):
 @app.get("/")
 def read_root():
     return {"message": "Welcome to LC-Vision API"}
+
+@app.get("/api/v1/openai-health")
+async def openai_health():
+    """
+    Lightweight production check for OpenAI connectivity, credentials, and model access.
+    """
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "Reply with OK only."}],
+            max_tokens=5,
+            temperature=0,
+        )
+        return {
+            "status": "success",
+            "model": "gpt-4o-mini",
+            "reply": response.choices[0].message.content,
+        }
+    except Exception as e:
+        logger.exception("OpenAI health check failed")
+        raise HTTPException(status_code=500, detail=f"OpenAI health check failed: {str(e)}")
 
 @app.get("/api/v1/audit-trail", response_model=list[AuditLogSchema])
 def get_audit_trail():
