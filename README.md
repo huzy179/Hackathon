@@ -24,6 +24,9 @@ Ngân hàng chỉ cần kéo thả toàn bộ tệp chứng từ thương mại 
 - **Commercial Invoice (Hóa đơn thương mại)**
 - **Bill of Lading - B/L (Vận đơn đường biển)**
 - **Packing List (Phiếu đóng gói hàng hóa)**
+- **Certificate of Origin - C/O (Giấy chứng nhận xuất xứ)**
+- **Certificate of Quality/Quantity - C/Q (Giấy chứng nhận chất lượng/số lượng)**
+- **Insurance Certificate (Chứng từ bảo hiểm)**
 Sau đó, hệ thống phân phối dữ liệu cho các AI Agent chuyên biệt tiến hành bóc tách song song.
 
 ### 2. Mô hình 3 Layer Validation nghiêm ngặt
@@ -50,7 +53,7 @@ Mọi hành động đều được hệ thống ghi nhận thời gian thực v
 
 ## 🚀 Hướng dẫn Cài đặt & Khởi chạy nhanh
 
-### Khởi chạy bằng Docker Compose (Khuyến nghị)
+### Khởi chạy bằng Docker Compose (Local - Khuyến nghị)
 1. Tạo file `.env` từ file `.env.example`:
    ```bash
    cp .env.example .env
@@ -65,3 +68,11 @@ Mọi hành động đều được hệ thống ghi nhận thời gian thực v
    ```
 4. Truy cập giao diện ứng dụng tại: `http://localhost:3000` (API Backend chạy tại `http://localhost:8000`).
    * Tài khoản đăng nhập mặc định: `admin` / `admin`.
+
+### Deploy lên Railway (Cloud)
+Dự án có cấu hình Railway sẵn (`railway.json`) cho cả Frontend và Backend:
+1. Cài Railway CLI: `npm install -g @railway/cli`
+2. Đăng nhập: `railway login`
+3. Khởi tạo project trên Railway và set biến môi trường `OPENAI_API_KEY`.
+4. Deploy từng service (backend/ và frontend/) riêng biệt hoặc dùng Railway Dashboard để link GitHub repo.
+5. Frontend cần set biến `NEXT_PUBLIC_API_URL` trỏ tới URL backend Railway.

@@ -18,8 +18,9 @@ Hệ thống áp dụng mô hình phân tách độc lập (Frontend và Backend
 └─────────────────────────────────┘        └─────────────────────────────────┘
 ```
 
-*   **Frontend (Next.js 16 + TypeScript + Tailwind CSS):** Giao diện chuyên nghiệp, hỗ trợ kéo thả upload nhiều chứng từ (Invoice, Bill of Lading, Packing List), bước Safety Gate duyệt điều khoản L/C, màn hình kết quả 3 Tab (Layer 1: Nội bộ, Layer 2: Đối chiếu chéo, Layer 3: So khớp L/C), và giả lập chấp nhận/từ chối Waiver của Khách hàng.
+*   **Frontend (Next.js 16 + TypeScript + Tailwind CSS):** Giao diện chuyên nghiệp, hỗ trợ kéo thả upload nhiều chứng từ (Invoice, B/L, Packing List, C/O, C/Q, Insurance Certificate), bước Safety Gate duyệt điều khoản L/C, màn hình kết quả 2 bước (OCR Check → Compliance Check) với 3 Tab (Layer 1: Nội bộ, Layer 2: Đối chiếu chéo, Layer 3: So khớp L/C), và giả lập chấp nhận/từ chối Waiver của Khách hàng. Component `ResultsCard.tsx` tách riêng để quản lý toàn bộ giao diện kết quả.
 *   **Backend (FastAPI + Pydantic + SQLite + Uvicorn):** Quét tìm trang chứng từ tối ưu, render ảnh JPEG base64 qua `PyMuPDF` (fitz), chạy song song bóc tách đa chứng từ qua Agent 1 (Extractor) và Agent 2 (Auditor). Thực hiện thuật toán thẩm định 3 Layer và tính toán cờ chặn Waiver tuyệt đối nếu L/C trễ hạn.
+*   **Deployment:** Docker Compose (local, port 3000 + 8000) và Railway (cloud, có `railway.json` cho cả Backend và Frontend).
 
 ---
 
@@ -67,25 +68,34 @@ Hệ thống LC-Vision v2.0 thực hiện rà soát nghiêm ngặt qua 3 tầng 
 ## 4. Chi tiết Cấu trúc Thư mục Dự án
 
 ```text
-LC/
+Hackathon/
 ├── backend/
 │   ├── app/
 │   │   ├── database.py      # SQLite Audit Trail Database
 │   │   ├── main.py          # REST Endpoints (/check-lc, /extract-lc-file, /parse-swift...)
-│   │   ├── schemas.py       # Định nghĩa Pydantic Models (ExtractedDocument, BLExtracted, PLExtracted...)
-│   │   ├── services.py      # Quy tắc thẩm định 3 Layer, Agent 1 & Agent 2, bóc tách Vision
-│   │   └── swift_parser.py  # Phân tích cú pháp điện thô SWIFT MT700 sang L/C terms
-│   ├── auto_test.py         # Script chạy kiểm thử tự động toàn bộ luồng
-│   └── requirements.txt     # Dependencies
+│   │   ├── schemas.py       # Pydantic Models (ExtractedDocument, BLExtracted, PLExtracted, COExtracted...)
+│   │   ├── services.py      # 3 Layer Validation, Agent 1 & Agent 2, bóc tách Vision đa chứng từ
+│   │   └── swift_parser.py  # Phân tích cú pháp SWIFT MT700 sang L/C terms
+│   ├── Dockerfile           # Tối ưu cho Docker Compose & Railway deployment
+│   ├── railway.json         # Cấu hình Railway cloud deployment
+│   ├── auto_test.py         # Script kiểm thử tự động toàn bộ luồng
+│   ├── requirements.txt     # Python dependencies
+│   └── test_samples/        # Chứng từ mẫu phục vụ test
 ├── frontend/
 │   ├── src/
 │   │   └── app/
-│   │       ├── globals.css  # Styling hệ thống
-│   │       └── page.tsx     # Giao diện Next.js, HITL và Trình giả lập Khách hàng
-│   ├── Dockerfile
+│   │       ├── components/
+│   │       │   └── ResultsCard.tsx  # Component hiển thị kết quả kiểm tra (OCR + Compliance tabs)
+│   │       ├── globals.css          # Styling hệ thống
+│   │       └── page.tsx             # Main page: Upload, Safety Gate, HITL, Waiver Simulator
+│   ├── Dockerfile           # Tối ưu cho Docker Compose & Railway deployment
+│   ├── railway.json         # Cấu hình Railway cloud deployment
+│   ├── CLAUDE.md / AGENTS.md  # Hướng dẫn cho AI Coding Agent
 │   └── package.json
-├── docker-compose.yml       # Docker Composer điều phối
+├── docker-compose.yml       # Docker Compose điều phối local (port 3000 + 8000)
 ├── Architecture.md          # Tài liệu kiến trúc này
 ├── flowdemo.md              # Kịch bản chạy thử demo
-└── readme.md                # Tài liệu hướng dẫn sử dụng chính
+├── PROMPTS.md               # Chuỗi prompt Vibe Coding xây dựng dự án
+├── LC_Vision_BA_Requirements_v2.md  # Business Analysis & Business Rules chi tiết
+└── README.md                # Tài liệu hướng dẫn sử dụng chính
 ```
