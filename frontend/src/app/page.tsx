@@ -81,6 +81,8 @@ export interface Discrepancy {
   severity: string;
 }
 
+type OcrDocType = "lc" | "invoice" | "bl" | "pl" | "co" | "cq" | "insurance";
+
 interface CheckResult {
   status: string;
   extracted: ExtractedDoc;
@@ -166,7 +168,7 @@ export default function Home() {
 
   // HITL stages
   const [resultStep, setResultStep] = useState<"ocr_check" | "compliance_check">("ocr_check");
-  const [activeOcrTab, setActiveOcrTab] = useState<"invoice" | "bl" | "pl" | "co" | "cq" | "insurance">("invoice");
+  const [activeOcrTab, setActiveOcrTab] = useState<OcrDocType>("lc");
 
   // Live Terminal Logs from Backend Streaming
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
@@ -175,7 +177,7 @@ export default function Home() {
   // Editable state (HITL)
   const [extractedDoc, setExtractedDoc] = useState<ExtractedDoc | null>(null);
   const [discrepancyList, setDiscrepancyList] = useState<Discrepancy[]>([]);
-  const [editingDoc, setEditingDoc] = useState<"invoice" | "bl" | "pl" | "co" | "cq" | "insurance" | null>(null);
+  const [editingDoc, setEditingDoc] = useState<OcrDocType | null>(null);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
@@ -710,6 +712,7 @@ export default function Home() {
     setExtractedCq(null);
     setExtractedInsurance(null);
     setResultStep("ocr_check");
+    setActiveOcrTab("lc");
     setDiscrepancyList([]);
     setCrossDiscrepancies([]);
     setTerminalLogs([]);
@@ -830,7 +833,8 @@ export default function Home() {
               return;
             } else if (payload.type === "result") {
               resData = payload.data;
-              setResult(resData);
+              const nextResult = { ...resData, lc_terms: freshLcTerms };
+              setResult(nextResult);
               setExtractedDoc(resData.extracted);
               setExtractedBl(resData.extracted_bl);
               setExtractedPl(resData.extracted_pl);
@@ -841,12 +845,7 @@ export default function Home() {
               setLayer1Discrepancies(resData.layer1_discrepancies || []);
               setCrossDiscrepancies(resData.cross_discrepancies || []);
               setCannotWaive(resData.cannot_waive || false);
-              if (resData.extracted?.invoice_number) setActiveOcrTab("invoice");
-              else if (resData.extracted_bl) setActiveOcrTab("bl");
-              else if (resData.extracted_pl) setActiveOcrTab("pl");
-              else if (resData.extracted_co) setActiveOcrTab("co");
-              else if (resData.extracted_cq) setActiveOcrTab("cq");
-              else if (resData.extracted_insurance) setActiveOcrTab("insurance");
+              setActiveOcrTab("lc");
               addTerminalLog("AI Engine hoàn tất bóc tách và kiểm toán chéo.");
               addTerminalLog("Đối chiếu UCP 600 thành công.");
             }
@@ -928,6 +927,7 @@ export default function Home() {
     setExtractedCq(null);
     setExtractedInsurance(null);
     setResultStep("ocr_check");
+    setActiveOcrTab("lc");
     setDiscrepancyList([]);
     setCrossDiscrepancies([]);
     setTerminalLogs([]);
@@ -986,7 +986,8 @@ export default function Home() {
               return;  // Exit handleCheck early
             } else if (payload.type === "result") {
               resData = payload.data;
-              setResult(resData);
+              const nextResult = { ...resData, lc_terms: lcTerms };
+              setResult(nextResult);
               setExtractedDoc(resData.extracted);
               setExtractedBl(resData.extracted_bl);
               setExtractedPl(resData.extracted_pl);
@@ -999,19 +1000,7 @@ export default function Home() {
               setCannotWaive(resData.cannot_waive || false);
 
               // Set default active tab
-              if (resData.extracted && resData.extracted.invoice_number) {
-                setActiveOcrTab("invoice");
-              } else if (resData.extracted_bl) {
-                setActiveOcrTab("bl");
-              } else if (resData.extracted_pl) {
-                setActiveOcrTab("pl");
-              } else if (resData.extracted_co) {
-                setActiveOcrTab("co");
-              } else if (resData.extracted_cq) {
-                setActiveOcrTab("cq");
-              } else if (resData.extracted_insurance) {
-                setActiveOcrTab("insurance");
-              }
+              setActiveOcrTab("lc");
               addTerminalLog("AI Engine đã bóc tách dữ liệu và hoàn tất kiểm toán chéo.");
               addTerminalLog("Đối chiếu UCP 600 thành công.");
             }
@@ -1113,12 +1102,13 @@ export default function Home() {
     }
   };
 
-  const startEditingField = (doc: "invoice" | "bl" | "pl" | "co" | "cq" | "insurance", field: string) => {
+  const startEditingField = (doc: OcrDocType, field: string) => {
     setEditingDoc(doc);
     setEditingField(field);
     
     let currentVal = "";
-    if (doc === "invoice" && extractedDoc) currentVal = (extractedDoc as any)[field]?.toString() || "";
+    if (doc === "lc") currentVal = lcTerms[field as keyof typeof lcTerms]?.toString() || "";
+    else if (doc === "invoice" && extractedDoc) currentVal = (extractedDoc as any)[field]?.toString() || "";
     else if (doc === "bl" && extractedBl) currentVal = extractedBl[field]?.toString() || "";
     else if (doc === "pl" && extractedPl) currentVal = extractedPl[field]?.toString() || "";
     else if (doc === "co" && extractedCo) currentVal = extractedCo[field]?.toString() || "";
@@ -1133,7 +1123,33 @@ export default function Home() {
     
     let updatedVal: any = editValue;
     
-    if (editingDoc === "invoice" && extractedDoc) {
+    if (editingDoc === "lc") {
+      if (editingField === "max_amount") {
+        updatedVal = parseFloat(editValue) || 0;
+      }
+      const updatedTerms = {
+        ...lcTerms,
+        [editingField]: updatedVal.toString()
+      };
+      const updatedConfidences = {
+        ...lcConfidences,
+        [editingField]: 1.0
+      };
+      setLcTerms(updatedTerms);
+      setLcConfidences(updatedConfidences);
+      if (result) {
+        setResult({
+          ...result,
+          lc_terms: {
+            ...(result.lc_terms || lcTerms),
+            [editingField]: updatedVal,
+            [`${editingField}_confidence`]: 1.0
+          }
+        });
+      }
+      addAuditLog(`Chuyên viên hiệu chỉnh L/C: ${editingField} -> '${updatedVal}'`, "edit");
+    }
+    else if (editingDoc === "invoice" && extractedDoc) {
       if (editingField === "total_amount" || editingField === "quantity" || editingField === "unit_price") {
         updatedVal = parseFloat(editValue) || 0;
       }
@@ -1914,6 +1930,8 @@ export default function Home() {
           {!isLoading && extractedDoc && (
             <ResultsCard
               isLoading={isLoading}
+              lcTerms={lcTerms}
+              lcConfidences={lcConfidences}
               extractedDoc={extractedDoc}
               extractedBl={extractedBl}
               extractedPl={extractedPl}
@@ -2025,13 +2043,6 @@ export default function Home() {
                       </span>
                     )}
                   </button>
-                  <a
-                    href={`mailto:?subject=Thong bao vuong mac chung tu L/C&body=${encodeURIComponent(result?.waiver_draft || "")}`}
-                    className="px-4 py-2 rounded-xl bg-blue-900 hover:bg-blue-950 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                  >
-                    <Mail className="h-3.5 w-3.5" />
-                    <span>Gửi Email</span>
-                  </a>
                 </div>
               </div>
               <div className="bg-slate-50 rounded-xl p-4 font-sans text-sm text-slate-700 whitespace-pre-wrap max-h-96 overflow-y-auto leading-relaxed border border-amber-100 border-l-4 border-l-amber-500">

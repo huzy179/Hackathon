@@ -2,8 +2,12 @@ import React, { useState } from "react";
 import { AlertTriangle, CheckCircle, Check, Edit2, Loader2, Mail, XCircle, HelpCircle, Copy } from "lucide-react";
 import { ExtractedDoc, Discrepancy } from "../page";
 
+type OcrDocType = "lc" | "invoice" | "bl" | "pl" | "co" | "cq" | "insurance";
+
 interface ResultsCardProps {
   isLoading: boolean;
+  lcTerms: Record<string, string | number>;
+  lcConfidences: Record<string, number>;
   extractedDoc: ExtractedDoc;
   extractedBl: any;
   extractedPl: any;
@@ -12,19 +16,19 @@ interface ResultsCardProps {
   extractedInsurance: any;
   resultStep: "ocr_check" | "compliance_check";
   setResultStep: (step: "ocr_check" | "compliance_check") => void;
-  activeOcrTab: "invoice" | "bl" | "pl" | "co" | "cq" | "insurance";
-  setActiveOcrTab: (tab: "invoice" | "bl" | "pl" | "co" | "cq" | "insurance") => void;
+  activeOcrTab: OcrDocType;
+  setActiveOcrTab: (tab: OcrDocType) => void;
   activeTab: "internal" | "cross" | "lc";
   setActiveTab: (tab: "internal" | "cross" | "lc") => void;
   discrepancyList: Discrepancy[];
   layer1Discrepancies: Discrepancy[];
   crossDiscrepancies: Discrepancy[];
   cannotWaive: boolean;
-  editingDoc: "invoice" | "bl" | "pl" | "co" | "cq" | "insurance" | null;
+  editingDoc: OcrDocType | null;
   editingField: string | null;
   editValue: string;
   setEditValue: (val: string) => void;
-  startEditingField: (doc: "invoice" | "bl" | "pl" | "co" | "cq" | "insurance", field: string) => void;
+  startEditingField: (doc: OcrDocType, field: string) => void;
   saveEditingField: () => void;
   handleRerunValidation: () => Promise<void>;
   isRerunningValidation: boolean;
@@ -51,6 +55,8 @@ export const ResultsCard: React.FC<ResultsCardProps> = (props) => {
 
 const ResultsCardInner: React.FC<ResultsCardProps & { emailCopied: boolean; handleCopyEmail: () => void }> = ({
   extractedDoc,
+  lcTerms,
+  lcConfidences,
   extractedBl,
   extractedPl,
   extractedCo,
@@ -83,9 +89,15 @@ const ResultsCardInner: React.FC<ResultsCardProps & { emailCopied: boolean; hand
   handleCopyEmail
 }) => {
 
-  const renderOcrRow = (docType: "invoice" | "bl" | "pl" | "co" | "cq" | "insurance", label: string, fieldKey: string, type: string, options?: string[]) => {
+  const renderOcrRow = (docType: OcrDocType, label: string, fieldKey: string, type: string, options?: string[]) => {
     let docData: any = null;
-    if (docType === "invoice") docData = extractedDoc;
+    if (docType === "lc") {
+      docData = {
+        ...lcTerms,
+        ...Object.fromEntries(Object.entries(lcConfidences).map(([key, value]) => [`${key}_confidence`, value]))
+      };
+    }
+    else if (docType === "invoice") docData = extractedDoc;
     else if (docType === "bl") docData = extractedBl;
     else if (docType === "pl") docData = extractedPl;
     else if (docType === "co") docData = extractedCo;
@@ -189,6 +201,16 @@ const ResultsCardInner: React.FC<ResultsCardProps & { emailCopied: boolean; hand
           </div>
 
           <div className="flex border-b border-slate-100 mb-5 overflow-x-auto">
+            {lcTerms && (
+              <button
+                onClick={() => setActiveOcrTab("lc")}
+                className={`pb-3 text-xs font-bold transition-all px-4 relative shrink-0 ${
+                  activeOcrTab === "lc" ? "text-blue-900 font-extrabold border-b-2 border-blue-900" : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                Thư tín dụng (L/C)
+              </button>
+            )}
             {extractedDoc && extractedDoc.invoice_number !== "" && (
               <button
                 onClick={() => setActiveOcrTab("invoice")}
@@ -267,6 +289,22 @@ const ResultsCardInner: React.FC<ResultsCardProps & { emailCopied: boolean; hand
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
+                {activeOcrTab === "lc" && [
+                  { label: "Hạn mức L/C tối đa", key: "max_amount", type: "number" },
+                  { label: "Đồng tiền", key: "currency", type: "text" },
+                  { label: "Ngày giao hàng muộn nhất", key: "latest_shipment", type: "text" },
+                  { label: "Người thụ hưởng (Beneficiary)", key: "beneficiary_name", type: "text" },
+                  { label: "Người mở L/C (Applicant)", key: "applicant_name", type: "text" },
+                  { label: "Ngày hết hạn L/C", key: "expiry_date", type: "text" },
+                  { label: "Cảng xếp hàng", key: "port_of_loading", type: "text" },
+                  { label: "Cảng dỡ hàng", key: "port_of_discharge", type: "text" },
+                  { label: "Mô tả hàng hóa", key: "goods_description", type: "text" },
+                  { label: "Điều kiện Incoterms", key: "incoterms", type: "text" },
+                  { label: "Giao hàng từng phần", key: "partial_shipment", type: "select", options: ["ALLOWED", "PROHIBITED"] },
+                  { label: "Chuyển tải", key: "transhipment", type: "select", options: ["ALLOWED", "PROHIBITED"] },
+                  { label: "Dung sai số tiền", key: "amount_tolerance", type: "text" }
+                ].map(f => renderOcrRow("lc", f.label, f.key, f.type, f.options))}
+
                 {activeOcrTab === "invoice" && [
                   { label: "Số hóa đơn (Invoice Number)", key: "invoice_number", type: "text" },
                   { label: "Ngày hóa đơn (Invoice Date)", key: "invoice_date", type: "text" },
@@ -678,13 +716,7 @@ const ResultsCardInner: React.FC<ResultsCardProps & { emailCopied: boolean; hand
                             <span className="flex items-center gap-1"><Copy className="h-3 w-3" /> Sao chép</span>
                           )}
                         </button>
-                        <a
-                          href={`mailto:?subject=Thong bao ket qua kiem tra chung tu L/C&body=${encodeURIComponent(result.waiver_draft)}`}
-                          className="px-3 py-1.5 rounded-lg bg-blue-900 hover:bg-blue-950 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                        >
-                          <Mail className="h-3 w-3" />
-                          <span>Gửi Email</span>
-                        </a>
+                        
                       </div>
                     </div>
                     <div className="bg-slate-50 rounded-xl p-3 text-xs font-sans text-slate-700 whitespace-pre-wrap max-h-52 overflow-y-auto leading-relaxed border border-l-4 border-slate-200 border-l-amber-400">
@@ -694,42 +726,7 @@ const ResultsCardInner: React.FC<ResultsCardProps & { emailCopied: boolean; hand
                 )}
 
                 {/* Action buttons */}
-                <div className="flex gap-3 pt-1">
-                  {isCompliant ? (
-                    <button
-                      onClick={() => {
-                        setDecisionStatus("payout");
-                        addAuditLog("Chuyên viên xác nhận COMPLIANT. Hồ sơ đủ điều kiện giải ngân.", "success");
-                      }}
-                      className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg"
-                    >
-                      <CheckCircle className="h-4 w-4" />
-                      <span>Xác nhận & Giải ngân</span>
-                    </button>
-                  ) : (
-                    <>
-                      {!cannotWaive && (
-                        <button
-                          onClick={() => {
-                            setDecisionStatus("pending_customer");
-                            addAuditLog("Chuyên viên gửi đề xuất Waiver đến Applicant.", "info");
-                          }}
-                          className="flex-1 py-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg"
-                        >
-                          <Mail className="h-4 w-4" />
-                          <span>Gửi Waiver cho Khách hàng</span>
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setIsRejectModalOpen(true)}
-                        className="flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2 shadow-lg"
-                      >
-                        <XCircle className="h-4 w-4" />
-                        <span>Từ chối thanh toán</span>
-                      </button>
-                    </>
-                  )}
-                </div>
+              
               </div>
             );
           })()}
