@@ -372,15 +372,23 @@ async def extract_lc_file(file: UploadFile = File(...)):
     try:
         file_bytes = await file.read()
         filename = file.filename
+        logger.info("Starting L/C extraction for file=%s size=%s bytes", filename, len(file_bytes))
         
         if filename.lower().endswith((".docx", ".doc")):
             is_docx = filename.lower().endswith(".docx")
             if is_docx:
+                logger.info("Extracting text from L/C DOCX file=%s", filename)
                 text = extract_docx_text(file_bytes)
             else:
+                logger.info("Extracting text from L/C DOC file=%s", filename)
                 text = extract_doc_text(file_bytes)
-            doc_type = await classify_document_text(text)
+            logger.info("Extracted %s characters from L/C Word file=%s", len(text), filename)
+            if not text.strip():
+                raise ValueError("Không trích xuất được nội dung văn bản từ file L/C.")
+            doc_type = "LETTER_OF_CREDIT"
+            logger.info("Calling AI L/C text extractor for file=%s", filename)
             lc_terms = await analyze_lc_with_ai_text(text)
+            logger.info("Finished AI L/C text extraction for file=%s", filename)
             return {
                 "status": "success",
                 "lc_terms": lc_terms.model_dump(),
@@ -388,13 +396,17 @@ async def extract_lc_file(file: UploadFile = File(...)):
                 "page_info": f"Tệp Word ({'DOCX' if is_docx else 'DOC'})"
             }
         else:
+            logger.info("Rendering L/C PDF/image file=%s", filename)
             image_base64, selected_page_idx, total_pages = await pdf_to_base64_image(file_bytes)
             
             # Classify the uploaded document
+            logger.info("Classifying rendered L/C document file=%s", filename)
             doc_type = await classify_document(image_base64)
             
             # Extract terms using L/C Extractor Agent
+            logger.info("Calling AI L/C vision extractor for file=%s page=%s/%s", filename, selected_page_idx + 1, total_pages)
             lc_terms = await analyze_lc_with_ai(image_base64)
+            logger.info("Finished AI L/C vision extraction for file=%s", filename)
             
             return {
                 "status": "success",

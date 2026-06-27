@@ -12,7 +12,11 @@ from openai import AsyncOpenAI
 from .schemas import ExtractedDocument, Discrepancy, BLExtracted, PLExtracted, COExtracted, CQExtracted, InsuranceExtracted
 
 # Initialize single shared Async OpenAI Client (reused across all agents)
-client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY") or "mock-key-for-local-testing")
+client = AsyncOpenAI(
+    api_key=os.getenv("OPENAI_API_KEY") or "mock-key-for-local-testing",
+    timeout=60.0,
+    max_retries=1,
+)
 
 # Maximum PDF file size accepted (10 MB) - guard against memory exhaustion
 MAX_PDF_BYTES = 10 * 1024 * 1024  # 10 MB
